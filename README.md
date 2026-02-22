@@ -35,13 +35,15 @@ webui-user.bat --api --xformers
 ## Usage
 
 1. Download `sd_batch_ui_v8.html`
-2. Serve it locally (required for file access):
+2. (You can safely optionally skip this step, but if connection fails in setp 3, it may be the culprit)
+   Serve it locally (required for file access):
    ```
    python -m http.server 8080
    ```
-   Then open `http://localhost:8080/sd_batch_ui_v8.html`
-3. Enter your A1111 URL (default `http://127.0.0.1:7860`) and click **Connect + Fetch Models**
-4. Configure your settings, queue images, and click **🚀 Generate**
+
+3  Then open `http://localhost:8080/sd_batch_ui_v8.html` (or just double click the html file if you skipped step 2)
+4. Enter your A1111 URL (default `http://127.0.0.1:7860`) and click **Connect + Fetch Models**
+5. Configure your settings, queue images, and click **🚀 Generate**
 
 > You can also just open the HTML file directly in Firefox (Chrome blocks local file access).
 
