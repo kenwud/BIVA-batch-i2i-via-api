@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SD Batch Processor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #0f0f1a;
+    --bg3: #141420;
+    --border: #1e1e35;
+    --border-bright: #2a2a50;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --accent3: #ff00aa;
+    --text: #c8c8e0;
+    --text-dim: #606080;
+    --text-bright: #e8e8ff;
+    --success: #00ff9f;
+    --warn: #ffaa00;
+    --error: #ff3366;
+    --glow: 0 0 20px rgba(0,229,255,0.15);
+    --glow2: 0 0 30px rgba(124,58,237,0.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse at 20% 20%, rgba(124,58,237,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(0,229,255,0.06) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .scanlines {
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 30px 20px 60px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-bright);
+  }
+
+  .logo-mark {
+    width: 42px;
+    height: 42px;
+    border: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    box-shadow: var(--glow), inset 0 0 10px rgba(0,229,255,0.05);
+    flex-shrink: 0;
+    animation: pulse-border 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: var(--glow), inset 0 0 10px rgba(0,229,255,0.05); }
+    50% { box-shadow: 0 0 30px rgba(0,229,255,0.3), inset 0 0 15px rgba(0,229,255,0.1); }
+  }
+
+  .header-text h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .header-text p {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.3s;
+  }
+
+  .status-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); animation: blink 2s ease-in-out infinite; }
+  .status-dot.error { background: var(--error); box-shadow: 0 0 8px var(--error); }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  #status-text { color: var(--text-dim); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 20px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .panel:hover { border-color: var(--border-bright); }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: linear-gradient(to bottom, var(--accent2), transparent);
+    opacity: 0.5;
+  }
+
+  .panel.accent-cyan::before { background: linear-gradient(to bottom, var(--accent), transparent); }
+  .panel.accent-pink::before { background: linear-gradient(to bottom, var(--accent3), transparent); }
+  .panel.full-width { grid-column: 1 / -1; }
+
+  .panel-label {
+    font-size: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .field-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0;
+    text-transform: none;
+    opacity: 0.65;
+    margin-top: 4px;
+    margin-bottom: 2px;
+    line-height: 1.4;
+  }
+
+  .prompt-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .prompt-toolbar label {
+    margin-bottom: 0;
+    flex: 0 0 auto;
+  }
+  .prompt-toolbar select {
+    flex: 1;
+    font-size: 11px;
+    padding: 3px 6px;
+    height: 26px;
+  }
+  .prompt-toolbar button {
+    background: var(--bg3);
+    border: 1px solid var(--border-bright);
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    height: 26px;
+    white-space: nowrap;
+  }
+  .prompt-toolbar button:hover { color: var(--accent); border-color: var(--accent); }
+
+  input[type="text"], textarea, select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text-bright);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input[type="text"]:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(0,229,255,0.2);
+  }
+
+  textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+
+  select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2300e5ff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 30px;
+  }
+
+  select option { background: var(--bg3); color: var(--text-bright); }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group:last-child { margin-bottom: 0; }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--border-bright);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0,229,255,0.5);
+  }
+
+  .slider-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .toggle-row:first-child { padding-top: 0; }
+
+  .toggle-label {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .toggle-sub {
+    font-size: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .toggle {
+    position: relative;
+    width: 40px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .toggle input { display: none; }
+
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border-bright);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    background: var(--text-dim);
+    transition: all 0.2s;
+    pointer-events: none;
+  }
+
+  .toggle input:checked ~ .toggle-track { background: rgba(0,229,255,0.15); border-color: var(--accent); }
+  .toggle input:checked ~ .toggle-track ~ .toggle-thumb,
+  .toggle input:checked + .toggle-track + .toggle-thumb { background: var(--accent); left: 23px; box-shadow: 0 0 6px var(--accent); }
+
+  /* Fix toggle thumb position when checked */
+  .toggle input:checked ~ * + .toggle-thumb { background: var(--accent); left: 23px; }
+
+  .run-section {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .btn {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    padding: 14px 32px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #000;
+    flex: 1;
+  }
+
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .btn-primary:hover::before { opacity: 1; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-bright);
+    color: var(--text-dim);
+    padding: 14px 20px;
+  }
+
+  .btn-secondary:hover { border-color: var(--accent3); color: var(--accent3); }
+
+  .btn span { position: relative; z-index: 1; }
+
+  .progress-section {
+    margin-top: 16px;
+    display: none;
+  }
+
+  .progress-section.visible { display: block; }
+
+  .progress-bar-outer {
+    height: 4px;
+    background: var(--border);
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .progress-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .log-area {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 12px;
+    height: 140px;
+    overflow-y: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--text-dim); flex-shrink: 0; }
+  .log-msg { color: var(--text); }
+  .log-msg.ok { color: var(--success); }
+  .log-msg.err { color: var(--error); }
+  .log-msg.info { color: var(--accent); }
+  .log-msg.warn { color: var(--warn); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .refresh-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 8px;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .api-url-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+
+  .api-url-row input { flex: 1; }
+
+  .badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+  }
+
+  .badge-cyan { color: var(--accent); }
+  .badge-purple { color: var(--accent2); }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="container">
+
+  <header>
+    <div class="logo-mark">SD</div>
+    <div class="header-text">
+      <h1>Batch Processor</h1>
+      <p>stable diffusion // controlnet // blender pipeline</p>
+    </div>
+    <div class="status-bar">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">disconnected</span>
+    </div>
+  </header>
+
+  <!-- API Connection -->
+  <div class="panel accent-cyan" style="margin-bottom:16px;">
+    <div class="panel-label">A1111 Connection</div>
+    <div class="api-url-row">
+      <input type="text" id="api-url" value="http://127.0.0.1:7860" placeholder="http://127.0.0.1:7860" />
+      <button class="btn btn-secondary" onclick="connectAndFetch()"><span>Connect + Fetch Models</span></button>
+    </div>
+  </div>
+
+  <!-- IO + Model Selection -->
+  <div class="grid" style="margin-bottom:16px;">
+    <div class="panel">
+      <div class="panel-label">Input / Output</div>
+      <div class="form-group">
+        <label>Beauty Render Folder</label>
+        <input type="text" id="beauty-dir" placeholder="/path/to/renders/beauty" />
+      </div>
+      <div class="form-group">
+        <label>Depth Map Folder</label>
+        <input type="text" id="depth-dir" placeholder="/path/to/renders/depth" />
+      </div>
+      <div class="form-group">
+        <label>Output Folder (A1111 saves here)</label>
+        <input type="text" id="output-dir" placeholder="C:/ai-sd/auto111/outputs/img2img-images/batch" />
+        <div class="field-hint">A1111 will save directly to this path on the server. Leave blank to use A1111's default output folder. No downloads — files go straight to disk.</div>
+      </div>
+      <div class="form-group">
+        <label>Output File Extension</label>
+        <select id="out-ext">
+          <option value="jpg">jpg (match A1111 if set to JPEG)</option>
+          <option value="png">png (A1111 default)</option>
+          <option value="webp">webp</option>
+        </select>
+        <div class="field-hint">Match this to whatever A1111 is configured to save. Affects the download link label only — A1111 controls the actual format on disk.</div>
+      </div>
+    </div>
+
+    <div class="panel accent-cyan">
+      <div class="panel-label">Model Selection</div>
+      <div class="form-group">
+        <label>SD Checkpoint <button class="refresh-btn" onclick="fetchModels()">↻ refresh</button></label>
+        <select id="sd-model">
+          <option value="">— connect to A1111 first —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ControlNet Model <button class="refresh-btn" onclick="fetchCNModels()">↻ refresh</button></label>
+        <select id="cn-model">
+          <option value="">— connect to A1111 first —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>CN Preprocessor <button class="refresh-btn" onclick="fetchPreprocessors()">↻ refresh</button></label>
+        <select id="cn-preprocessor">
+          <option value="none">none (pre-rendered depth map)</option>
+        </select>
+        <div class="field-hint">Fetched live from A1111 — includes every preprocessor you have installed. "none" = your image is already processed (depth maps, freestyle renders, etc.)</div>
+      </div>
+      <div class="form-group">
+        <label>LoRA <button class="refresh-btn" onclick="fetchLoras()">↻ refresh</button> <span style="color:var(--text-dim);font-size:9px;letter-spacing:0;text-transform:none;font-family:'Rajdhani',sans-serif;">— adds to prompt</span></label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select id="lora-select" style="flex:1;">
+            <option value="">— none —</option>
+          </select>
+          <input type="number" id="lora-weight" min="0" max="2" step="0.05" value="0.8" style="width:60px;padding:4px;" title="LoRA weight" />
+          <button class="refresh-btn" onclick="insertLora()" style="white-space:nowrap;">+ insert</button>
+        </div>
+        <div class="field-hint">Select a LoRA and click insert to add &lt;lora:name:weight&gt; to the positive prompt.</div>
+      </div>
+      <div class="form-group">
+        <label>Embedding / TI <button class="refresh-btn" onclick="fetchEmbeddings()">↻ refresh</button> <span style="color:var(--text-dim);font-size:9px;letter-spacing:0;text-transform:none;font-family:'Rajdhani',sans-serif;">— adds to prompt</span></label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select id="embedding-select" style="flex:1;">
+            <option value="">— none —</option>
+          </select>
+          <button class="refresh-btn" onclick="insertEmbedding()" style="white-space:nowrap;">+ insert</button>
+        </div>
+        <div class="field-hint">Textual inversions / embeddings. Insert adds the token name to the positive prompt.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompts -->
+  <div class="panel full-width accent-pink" style="margin-bottom:16px;">
+    <div class="panel-label">Prompts
+      <button class="refresh-btn" onclick="interrogateClip()" style="margin-left:8px;" title="Send first queued image to CLIP interrogate — fills positive prompt">🔍 Interrogate CLIP</button>
+      <span style="font-family:'Rajdhani',sans-serif; font-size:10px; color:var(--text-dim); letter-spacing:0; text-transform:none; margin-left:10px;">tip: for instruct-pix2pix edits use <code style="color:var(--accent);">ip2p</code> CN preprocessor with a description like "make it look like lava"</span>
+    </div>
+    <div class="two-col">
+      <div class="form-group">
+        <div class="prompt-toolbar">
+          <label>Positive</label>
+          <select id="saved-pos-select" onchange="loadSavedPrompt('pos')"><option value="">— saved prompts —</option></select>
+          <button onclick="saveCurrentPrompt('pos')">save</button>
+          <button onclick="deleteSavedPrompt('pos')">del</button>
+        </div>
+        <textarea id="prompt" placeholder="masterpiece, best quality, highly detailed, sharp focus, 8k">masterpiece, best quality, highly detailed, sharp focus, 8k</textarea>
+      </div>
+      <div class="form-group">
+        <div class="prompt-toolbar">
+          <label>Negative</label>
+          <select id="saved-neg-select" onchange="loadSavedPrompt('neg')"><option value="">— saved prompts —</option></select>
+          <button onclick="saveCurrentPrompt('neg')">save</button>
+          <button onclick="deleteSavedPrompt('neg')">del</button>
+        </div>
+        <textarea id="neg-prompt" placeholder="worst quality, low quality, blurry, noisy, watermark, text, signature, jpeg artifacts">worst quality, low quality, blurry, noisy, watermark, text, signature, jpeg artifacts</textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div class="grid-3" style="margin-bottom:16px;">
+    <div class="panel">
+      <div class="panel-label">Generation</div>
+      <div class="form-group">
+        <label>Strength</label>
+        <div class="slider-row">
+          <input type="range" id="denoise" min="0.1" max="1.0" step="0.01" value="0.85" oninput="updateVal('denoise','denoise-val')" />
+          <span class="slider-val" id="denoise-val">0.85</span>
+        </div>
+        <div class="field-hint">How much SD rewrites the image. 0.3 = subtle changes, 0.7+ = heavy reimagining, 1.0 = ignores input entirely.</div>
+      </div>
+      <div class="form-group">
+        <label>CFG Scale</label>
+        <div class="slider-row">
+          <input type="range" id="cfg" min="1" max="20" step="0.5" value="7" oninput="updateVal('cfg','cfg-val')" />
+          <span class="slider-val" id="cfg-val">7</span>
+        </div>
+        <div class="field-hint">How strictly SD follows the prompt. 5–8 is typical. Higher = more literal but can cause artifacts.</div>
+      </div>
+      <div class="form-group">
+        <label>Steps</label>
+        <div class="slider-row">
+          <input type="range" id="steps" min="10" max="50" step="1" value="25" oninput="updateVal('steps','steps-val')" />
+          <span class="slider-val" id="steps-val">25</span>
+        </div>
+        <div class="field-hint">Denoising iterations. 20–30 is plenty for most samplers. More steps = slower, diminishing returns above 30.</div>
+      </div>
+      <div class="form-group">
+        <label>Seed</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="number" id="seed" value="-1" min="-1" style="flex:1;" />
+          <button class="refresh-btn" onclick="document.getElementById('seed').value=-1" title="Set to random">🎲 rng</button>
+          <button class="refresh-btn" id="seed-lock-btn" onclick="toggleSeedLock()" title="Lock seed">🔓 lock</button>
+        </div>
+        <div class="field-hint">-1 = random each image. Lock to fix a seed across the whole batch for consistency.</div>
+      </div>
+      <div class="form-group">
+        <label>CLIP Skip</label>
+        <div class="slider-row">
+          <input type="range" id="clip-skip" min="1" max="12" step="1" value="1" oninput="updateVal('clip-skip','clip-skip-val')" />
+          <span class="slider-val" id="clip-skip-val">1</span>
+        </div>
+        <div class="field-hint">Layers to skip in CLIP text encoder. 1 = default (SD1.5). 2 = common for anime models. Match your checkpoint's training.</div>
+      </div>
+      <div class="toggle-row" style="margin-top:10px;">
+        <div>
+          <div class="toggle-label">img2img Color Correction</div>
+          <div class="toggle-sub">match output colors to input image — reduces color drift</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="color-correction" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel accent-cyan">
+      <div class="panel-label">ControlNet</div>
+      <div class="form-group">
+        <label>CN Weight</label>
+        <div class="slider-row">
+          <input type="range" id="cn-weight" min="0.1" max="1.5" step="0.05" value="0.6" oninput="updateVal('cn-weight','cn-weight-val')" />
+          <span class="slider-val" id="cn-weight-val">0.6</span>
+        </div>
+        <div class="field-hint">How strongly CN guides the composition. 0.4 = loose/creative, 0.6–0.8 = balanced, 1.0+ = rigid structure.</div>
+      </div>
+      <div class="form-group">
+        <label>CN Start</label>
+        <div class="slider-row">
+          <input type="range" id="cn-start" min="0" max="1" step="0.05" value="0" oninput="updateVal('cn-start','cn-start-val')" />
+          <span class="slider-val" id="cn-start-val">0.0</span>
+        </div>
+        <div class="field-hint">Step fraction where CN guidance begins. 0 = from the start.</div>
+      </div>
+      <div class="form-group">
+        <label>CN End</label>
+        <div class="slider-row">
+          <input type="range" id="cn-end" min="0" max="1" step="0.05" value="1" oninput="updateVal('cn-end','cn-end-val')" />
+          <span class="slider-val" id="cn-end-val">1.0</span>
+        </div>
+        <div class="field-hint">Step fraction where CN guidance stops. Try 0.7 to let SD add detail freely at the end.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">Resolution</div>
+
+      <div class="form-group">
+        <label>Resize Mode</label>
+        <div style="display:flex; gap:0; margin-bottom:4px;">
+          <button id="rmode-to-btn" onclick="setResizeMode('to')"
+            style="flex:1; padding:5px; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; cursor:pointer; border:1px solid var(--accent); background:var(--accent); color:var(--bg); transition:all 0.2s;">
+            RESIZE TO
+          </button>
+          <button id="rmode-by-btn" onclick="setResizeMode('by')"
+            style="flex:1; padding:5px; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; cursor:pointer; border:1px solid var(--border-bright); background:var(--bg3); color:var(--text-dim); transition:all 0.2s;">
+            RESIZE BY
+          </button>
+        </div>
+      </div>
+
+      <!-- Resize TO controls -->
+      <div id="resize-to-section">
+        <div class="form-group">
+          <label>Max Long Edge</label>
+          <select id="max-edge">
+            <option value="512">512px</option>
+            <option value="640">640px</option>
+            <option value="768" selected>768px</option>
+            <option value="896">896px</option>
+            <option value="1024">1024px</option>
+            <option value="1280">1280px</option>
+            <option value="1536">1536px</option>
+            <option value="2048">2048px</option>
+          </select>
+          <div class="field-hint">Fixed output size — short edge calculated automatically. SD 1.5 trained at 512px; use Tiled Diffusion above 768px.</div>
+        </div>
+      </div>
+
+      <!-- Resize BY controls -->
+      <div id="resize-by-section" style="display:none;">
+        <div class="form-group">
+          <label>Scale Factor</label>
+          <div class="slider-row">
+            <input type="range" id="scale-factor" min="0.5" max="4.0" step="0.05" value="1.25" oninput="updateVal('scale-factor','scale-factor-val')" />
+            <span class="slider-val" id="scale-factor-val">1.25</span>
+          </div>
+          <div class="field-hint">Output = input × scale, snapped to 64px. Good for iterative upscaling — each pass multiplies size. Use Tiled Diffusion above ~1024px on 6GB.</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>SD Resize Method</label>
+        <select id="resize-mode">
+          <option value="1" selected>Crop and Resize (keep aspect)</option>
+          <option value="0">Just Resize (stretch)</option>
+          <option value="2">Resize and Fill</option>
+          <option value="3">Latent Upscale</option>
+        </select>
+        <div class="field-hint">How the input image is fitted to the target size. Crop and Resize is almost always what you want.</div>
+      </div>
+      <div class="form-group">
+        <label>Pre-scale Input Cap</label>
+        <select id="prescale-cap">
+          <option value="0">Off — send full resolution</option>
+          <option value="512">512px max</option>
+          <option value="768" selected>768px max</option>
+          <option value="1024">1024px max</option>
+          <option value="1280">1280px max</option>
+        </select>
+        <div class="field-hint">Shrinks oversized inputs in the browser before sending to SD. Turn off if using Tiled Diffusion to handle a high-res input (e.g. 1080p Blender frames).</div>
+      </div>
+      <div class="form-group">
+        <label>Sampler</label>
+        <select id="sampler">
+          <option value="DPM++ 2M Karras">DPM++ 2M Karras</option>
+          <option value="DPM++ SDE Karras">DPM++ SDE Karras</option>
+          <option value="Euler a">Euler a</option>
+          <option value="DDIM">DDIM</option>
+          <option value="UniPC">UniPC</option>
+        </select>
+        <div class="field-hint">DPM++ 2M Karras is fast and consistent. Euler a is more varied per seed. Note: Noise Inversion in Tiled Diffusion forces Euler.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ControlNet Unit 2 -->
+  <div class="panel full-width" style="margin-bottom:16px;">
+    <div class="panel-label">ControlNet — Unit 2 (optional)</div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div>
+        <div class="toggle-label">Enable Second CN Unit</div>
+        <div class="toggle-sub">stack a second ControlNet on top of unit 1 — e.g. depth + ip2p, depth + canny, tile + softedge</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="cn2-enable" onchange="toggleCN2Options()" />
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+    <div id="cn2-options" style="display:none;">
+      <div class="grid-3">
+        <div class="form-group">
+          <label>CN2 Model <button class="refresh-btn" onclick="fetchCNModels()">↻</button></label>
+          <select id="cn2-model">
+            <option value="">— connect to A1111 first —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>CN2 Preprocessor <button class="refresh-btn" onclick="fetchPreprocessors()">↻</button></label>
+          <select id="cn2-preprocessor">
+            <option value="none">none</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>CN2 Image Source</label>
+          <select id="cn2-source">
+            <option value="beauty">beauty render (same as input)</option>
+            <option value="depth">depth map folder</option>
+          </select>
+          <div class="field-hint">Which image to feed unit 2. Beauty = same as the img2img input. Depth = your paired depth maps.</div>
+        </div>
+      </div>
+      <div class="grid-3" style="margin-top:8px;">
+        <div class="form-group">
+          <label>CN2 Weight</label>
+          <div class="slider-row">
+            <input type="range" id="cn2-weight" min="0.1" max="1.5" step="0.05" value="0.5" oninput="updateVal('cn2-weight','cn2-weight-val')" />
+            <span class="slider-val" id="cn2-weight-val">0.5</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>CN2 Start</label>
+          <div class="slider-row">
+            <input type="range" id="cn2-start" min="0" max="1" step="0.05" value="0" oninput="updateVal('cn2-start','cn2-start-val')" />
+            <span class="slider-val" id="cn2-start-val">0.0</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>CN2 End</label>
+          <div class="slider-row">
+            <input type="range" id="cn2-end" min="0" max="1" step="0.05" value="1" oninput="updateVal('cn2-end','cn2-end-val')" />
+            <span class="slider-val" id="cn2-end-val">1.0</span>
+          </div>
+        </div>
+      </div>
+      <div class="field-hint" style="margin-top:6px;">Common combos: <strong>depth + ip2p</strong> (structure-locked style edit) · <strong>depth + softedge</strong> (extra edge detail) · <strong>tile + canny</strong> (upscale with edge reinforcement)</div>
+    </div>
+  </div>
+
+  <!-- Tiled Diffusion + VAE -->
+  <div class="grid" style="margin-bottom:16px;">
+    <div class="panel">
+      <div class="panel-label">Tiled Diffusion</div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable Tiled Diffusion</div>
+          <div class="toggle-sub">process large images in tiles</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="td-enable" checked onchange="toggleTDOptions()" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+
+      <div id="td-options" style="margin-top:12px;">
+        <div class="form-group">
+          <label>Method</label>
+          <select id="td-method">
+            <option value="MultiDiffusion">MultiDiffusion</option>
+            <option value="Mixture of Diffusers">Mixture of Diffusers</option>
+          </select>
+        </div>
+        <div class="two-col">
+          <div class="form-group">
+            <label>Tile Width</label>
+            <select id="td-tile-w">
+              <option value="64">64</option>
+              <option value="96">96</option>
+              <option value="128">128</option>
+              <option value="144" selected>144</option>
+              <option value="192">192</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tile Height</label>
+            <select id="td-tile-h">
+              <option value="64">64</option>
+              <option value="96">96</option>
+              <option value="128">128</option>
+              <option value="144" selected>144</option>
+              <option value="192">192</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Overlap</label>
+          <div class="slider-row">
+            <input type="range" id="td-overlap" min="12" max="96" step="4" value="72" oninput="updateVal('td-overlap','td-overlap-val')" />
+            <span class="slider-val" id="td-overlap-val">72</span>
+          </div>
+          <div class="field-hint">Higher overlap = better seams, slower. 48–72 is typical.</div>
+        </div>
+        <div class="form-group">
+          <label>Tile Batch Size</label>
+          <div class="slider-row">
+            <input type="range" id="td-batch" min="1" max="8" step="1" value="1" oninput="updateVal('td-batch','td-batch-val')" />
+            <span class="slider-val" id="td-batch-val">1</span>
+          </div>
+          <div class="field-hint">Keep at 1 for 6GB VRAM. Higher = faster but more VRAM.</div>
+        </div>
+        <div class="toggle-row" style="margin-top:8px;">
+          <div>
+            <div class="toggle-label">Move CN Tensor to CPU</div>
+            <div class="toggle-sub">frees VRAM during tiling — recommended for 6GB</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="td-cn-cpu" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel accent-cyan">
+      <div class="panel-label">Tiled VAE</div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable Tiled VAE</div>
+          <div class="toggle-sub">reduces VRAM during encode/decode</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="tv-enable" checked onchange="toggleTVOptions()" />
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+
+      <div id="tv-options" style="margin-top:12px;">
+        <div class="two-col">
+          <div class="form-group">
+            <label>Encoder Tile</label>
+            <select id="tv-enc">
+              <option value="512">512</option>
+              <option value="1024">1024</option>
+              <option value="1552" selected>1552</option>
+              <option value="2048">2048</option>
+              <option value="3072">3072</option>
+            </select>
+            <div class="field-hint">Set as high as VRAM allows before OOM. 1552 is a safe default for 6GB.</div>
+          </div>
+          <div class="form-group">
+            <label>Decoder Tile</label>
+            <select id="tv-dec">
+              <option value="64">64</option>
+              <option value="96">96</option>
+              <option value="128">128</option>
+              <option value="144" selected>144</option>
+              <option value="256">256</option>
+            </select>
+          </div>
+        </div>
+        <div class="toggle-row" style="margin-top:8px;">
+          <div>
+            <div class="toggle-label">Fast Decoder</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="tv-fast-dec" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Fast Encoder</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="tv-fast-enc" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Fast Encoder Color Fix</div>
+            <div class="toggle-sub">reduces color shift from fast encoder</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="tv-color-fix" checked />
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post Upscale -->
+  <div class="panel full-width" style="margin-bottom:16px;">
+    <div class="panel-label">Post-Upscale (optional)</div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div>
+        <div class="toggle-label">Enable Post-Upscale</div>
+        <div class="toggle-sub">run output through ESRGAN after SD generates — uses /extra-single-image API</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="upscale-enable" onchange="toggleUpscaleOptions()" />
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+    <div id="upscale-options" style="display:none;">
+      <div class="two-col">
+        <div class="form-group">
+          <label>Upscaler <button class="refresh-btn" onclick="fetchUpscalers()">↻ refresh</button></label>
+          <select id="upscaler-model">
+            <option value="">— connect to A1111 first —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Scale Factor</label>
+          <div class="slider-row">
+            <input type="range" id="upscale-factor" min="1" max="4" step="0.5" value="2" oninput="updateVal('upscale-factor','upscale-factor-val')" />
+            <span class="slider-val" id="upscale-factor-val">2.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADetailer -->
+  <div class="panel full-width" style="margin-bottom:16px;">
+    <div class="panel-label">ADetailer (optional)</div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div>
+        <div class="toggle-label">Enable ADetailer</div>
+        <div class="toggle-sub">detects and refines specific regions (faces, hands) after generation</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="ad-enable" onchange="toggleADOptions()" />
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+    <div id="ad-options" style="display:none;">
+      <div class="two-col">
+        <div class="form-group">
+          <label>Detection Model</label>
+          <select id="ad-model">
+            <option value="face_yolov8n.pt">face_yolov8n.pt (fast)</option>
+            <option value="face_yolov8s.pt">face_yolov8s.pt (accurate)</option>
+            <option value="hand_yolov8n.pt">hand_yolov8n.pt</option>
+            <option value="person_yolov8n-seg.pt">person_yolov8n-seg.pt</option>
+            <option value="mediapipe_face_full">mediapipe_face_full</option>
+            <option value="mediapipe_face_short">mediapipe_face_short</option>
+          </select>
+          <div class="field-hint">Detects regions to refine. Use face models for portrait work.</div>
+        </div>
+        <div class="form-group">
+          <label>Inpaint Denoising</label>
+          <div class="slider-row">
+            <input type="range" id="ad-denoise" min="0.1" max="1.0" step="0.01" value="0.4" oninput="updateVal('ad-denoise','ad-denoise-val')" />
+            <span class="slider-val" id="ad-denoise-val">0.4</span>
+          </div>
+          <div class="field-hint">Lower = subtle fix, higher = more creative reinterpretation of detected region.</div>
+        </div>
+      </div>
+      <div class="two-col" style="margin-top:8px;">
+        <div class="form-group">
+          <label>ADetailer Positive Prompt</label>
+          <textarea id="ad-prompt" rows="2" placeholder="Leave blank to use main positive prompt" style="min-height:60px;"></textarea>
+          <div class="field-hint">Override prompt for the inpaint pass only. Useful for fine-tuning detected regions specifically.</div>
+        </div>
+        <div class="form-group">
+          <label>ADetailer Negative Prompt</label>
+          <textarea id="ad-neg-prompt" rows="2" placeholder="Leave blank to use main negative prompt" style="min-height:60px;"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Profiles -->
+  <div class="panel full-width" style="margin-bottom:16px;">
+    <div class="panel-label">Settings Profiles</div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <select id="profile-select" style="flex:1; min-width:160px;">
+        <option value="">— saved profiles —</option>
+      </select>
+      <button class="refresh-btn" onclick="loadProfile()" style="white-space:nowrap;">⬇ load</button>
+      <button class="refresh-btn" onclick="saveProfile()" style="white-space:nowrap;">💾 save as…</button>
+      <button class="refresh-btn" onclick="deleteProfile()" style="white-space:nowrap;">✕ delete</button>
+    </div>
+    <div class="field-hint" style="margin-top:6px;">Saves all current settings (sliders, toggles, dropdowns, sampler, resolution mode) as a named profile. Prompts are saved separately above.</div>
+  </div>
+
+  <!-- Run -->
+  <div class="run-section">
+    <button class="btn btn-secondary" onclick="generateScript()"><span>⬇ Export .py Script</span></button>
+    <button class="btn btn-secondary" id="select-btn" onclick="selectFiles()"><span>🖼 Select Images…</span></button>
+    <button class="btn btn-primary" id="run-btn" onclick="runBatch()" disabled><span id="run-label">🚀 Generate</span></button>
+  </div>
+
+  <!-- File queue -->
+  <div id="queue-section" style="display:none; margin-bottom:16px;">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-dim); letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+      Queue <span id="queue-count" style="color:var(--accent);">0 files</span>
+      <span style="flex:1; height:1px; background:var(--border); display:block;"></span>
+      <button onclick="clearQueue()" style="background:none; border:1px solid var(--border); color:var(--text-dim); font-family:'Share Tech Mono',monospace; font-size:10px; padding:2px 8px; cursor:pointer; letter-spacing:1px;">✕ clear</button>
+    </div>
+    <div id="queue-list" style="display:flex; flex-wrap:wrap; gap:6px; max-height:120px; overflow-y:auto; padding:4px;"></div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section" id="progress-section">
+    <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+      <span style="font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-dim);" id="progress-label">0 / 0 frames</span>
+      <span style="font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--accent);" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-bar-outer">
+      <div class="progress-bar-inner" id="progress-bar"></div>
+    </div>
+    <div class="log-area" id="log-area"></div>
+  </div>
+
+</div>
+
+<script>
+
+  // ── Prompt save/load (localStorage) ──────────────────────────────
+  const PROMPT_KEY = 'sdBatchPrompts';
+  const PROFILE_KEY = 'sdBatchProfiles';
+
+  // ── Seed lock ──────────────────────────────────────────────────────────────
+  function toggleSeedLock() {
+    const btn = document.getElementById('seed-lock-btn');
+    const locked = btn.dataset.locked === 'true';
+    btn.dataset.locked = locked ? 'false' : 'true';
+    btn.textContent = locked ? '🔓 lock' : '🔒 locked';
+    btn.style.color = locked ? '' : 'var(--warn)';
+    btn.style.borderColor = locked ? '' : 'var(--warn)';
+  }
+
+  // ── Interrogate CLIP ───────────────────────────────────────────────────────
+  async function interrogateClip() {
+    if (!queuedBeautyFiles.length) {
+      log('Queue an image first — 🖼 Select Images, then interrogate.', 'warn');
+      return;
+    }
+    const b64 = await toBase64(queuedBeautyFiles[0]);
+    log('Interrogating CLIP on first queued image...', 'info');
+    try {
+      const resp = await fetch(getApiUrl() + '/sdapi/v1/interrogate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: b64, model: 'clip' })
+      });
+      if (!resp.ok) { log('Interrogate failed: ' + resp.status, 'err'); return; }
+      const data = await resp.json();
+      document.getElementById('prompt').value = data.caption || '';
+      log('✓ CLIP result dumped to positive prompt', 'ok');
+    } catch(e) {
+      log('Interrogate error: ' + e.message, 'err');
+    }
+  }
+
+  // ── Settings Profiles ──────────────────────────────────────────────────────
+  const PROFILE_FIELDS = [
+    'denoise','cfg','steps','seed','clip-skip',
+    'cn-weight','cn-start','cn-end',
+    'cn2-enable','cn2-model','cn2-preprocessor','cn2-source','cn2-weight','cn2-start','cn2-end',
+    'max-edge','scale-factor','prescale-cap',
+    'resize-mode','sampler',
+    'td-enable','td-method','td-tile-w','td-tile-h','td-overlap','td-batch','td-move-cn',
+    'tv-enable','tv-enc-tile','tv-dec-tile','tv-fast-enc',
+    'upscale-enable','upscale-model','upscale-scale',
+    'ad-enable','ad-model','ad-denoise',
+    'color-correction','out-ext',
+    'cn-model','cn-preprocessor',
+    'sd-model',
+  ];
+
+  function getProfileStore() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveProfileStore(store) { localStorage.setItem(PROFILE_KEY, JSON.stringify(store)); }
+
+  function refreshProfileDropdown() {
+    const sel = document.getElementById('profile-select');
+    const cur = sel.value;
+    const store = getProfileStore();
+    sel.innerHTML = '<option value="">— saved profiles —</option>';
+    Object.keys(store).sort().forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    if (cur) sel.value = cur;
+  }
+
+  function captureProfileState() {
+    const state = { _resizeMode: resizeModeType };
+    PROFILE_FIELDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') state[id] = el.checked;
+      else state[id] = el.value;
+    });
+    return state;
+  }
+
+  function applyProfileState(state) {
+    if (state._resizeMode) setResizeMode(state._resizeMode);
+    PROFILE_FIELDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || state[id] === undefined) return;
+      if (el.type === 'checkbox') el.checked = state[id];
+      else el.value = state[id];
+      // update slider readouts
+      const valEl = document.getElementById(id + '-val');
+      if (valEl) valEl.textContent = state[id];
+    });
+    // update ADetailer visibility
+    const adOpts = document.getElementById('ad-options');
+    if (adOpts) adOpts.style.display = document.getElementById('ad-enable').checked ? 'block' : 'none';
+    // update CN2 visibility
+    const cn2Opts = document.getElementById('cn2-options');
+    if (cn2Opts) cn2Opts.style.display = document.getElementById('cn2-enable').checked ? 'block' : 'none';
+  }
+
+  function saveProfile() {
+    const name = prompt('Profile name:');
+    if (!name || !name.trim()) return;
+    const store = getProfileStore();
+    store[name.trim()] = captureProfileState();
+    saveProfileStore(store);
+    refreshProfileDropdown();
+    document.getElementById('profile-select').value = name.trim();
+    log(`Profile "${name.trim()}" saved.`, 'ok');
+  }
+
+  function loadProfile() {
+    const name = document.getElementById('profile-select').value;
+    if (!name) { log('Select a profile first.', 'warn'); return; }
+    const store = getProfileStore();
+    if (!store[name]) { log('Profile not found.', 'err'); return; }
+    applyProfileState(store[name]);
+    log(`Profile "${name}" loaded.`, 'ok');
+  }
+
+  function deleteProfile() {
+    const name = document.getElementById('profile-select').value;
+    if (!name) { log('Select a profile first.', 'warn'); return; }
+    if (!confirm(`Delete profile "${name}"?`)) return;
+    const store = getProfileStore();
+    delete store[name];
+    saveProfileStore(store);
+    refreshProfileDropdown();
+    log(`Profile "${name}" deleted.`, 'warn');
+  }
+
+  // init profiles dropdown on load
+  document.addEventListener('DOMContentLoaded', refreshProfileDropdown);
+
+  function getPromptStore() {
+    try { return JSON.parse(localStorage.getItem(PROMPT_KEY) || '{"pos":{},"neg":{}}'); }
+    catch(e) { return {pos:{}, neg:{}}; }
+  }
+
+  function savePromptStore(store) {
+    localStorage.setItem(PROMPT_KEY, JSON.stringify(store));
+  }
+
+  function populatePromptDropdowns() {
+    const store = getPromptStore();
+    ['pos','neg'].forEach(type => {
+      const sel = document.getElementById(`saved-${type}-select`);
+      const current = sel.value;
+      sel.innerHTML = '<option value="">— saved prompts —</option>';
+      Object.keys(store[type] || {}).sort().forEach(name => {
+        const o = document.createElement('option');
+        o.value = name; o.textContent = name;
+        sel.appendChild(o);
+      });
+      if (current) sel.value = current;
+    });
+  }
+
+  function saveCurrentPrompt(type) {
+    const textareaId = type === 'pos' ? 'prompt' : 'neg-prompt';
+    const text = document.getElementById(textareaId).value.trim();
+    if (!text) { alert('Prompt is empty.'); return; }
+    const name = prompt('Save prompt as:');
+    if (!name || !name.trim()) return;
+    const store = getPromptStore();
+    store[type][name.trim()] = text;
+    savePromptStore(store);
+    populatePromptDropdowns();
+    document.getElementById(`saved-${type}-select`).value = name.trim();
+  }
+
+  function loadSavedPrompt(type) {
+    const sel = document.getElementById(`saved-${type}-select`);
+    if (!sel.value) return;
+    const store = getPromptStore();
+    const text = store[type][sel.value];
+    if (text) document.getElementById(type === 'pos' ? 'prompt' : 'neg-prompt').value = text;
+  }
+
+  function deleteSavedPrompt(type) {
+    const sel = document.getElementById(`saved-${type}-select`);
+    if (!sel.value) { alert('Nothing selected.'); return; }
+    if (!confirm(`Delete "${sel.value}"?`)) return;
+    const store = getPromptStore();
+    delete store[type][sel.value];
+    savePromptStore(store);
+    populatePromptDropdowns();
+  }
+
+  let isRunning = false;
+  let abortBatch = false;
+
+  function updateVal(sliderId, valId) {
+    document.getElementById(valId).textContent = parseFloat(document.getElementById(sliderId).value).toFixed(
+      sliderId === 'steps' || sliderId === 'td-batch' ? 0 : 2
+    );
+  }
+
+  function toggleTDOptions() {
+    document.getElementById('td-options').style.display = document.getElementById('td-enable').checked ? 'block' : 'none';
+  }
+
+  function toggleTVOptions() {
+    document.getElementById('tv-options').style.display = document.getElementById('tv-enable').checked ? 'block' : 'none';
+  }
+
+  function setStatus(state, msg) {
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    dot.className = 'status-dot ' + state;
+    txt.textContent = msg;
+  }
+
+  function log(msg, type='') {
+    const area = document.getElementById('log-area');
+    const now = new Date();
+    const time = now.toTimeString().slice(0,8);
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.innerHTML = `<span class="log-time">${time}</span><span class="log-msg ${type}">${msg}</span>`;
+    area.appendChild(line);
+    area.scrollTop = area.scrollHeight;
+    document.getElementById('progress-section').classList.add('visible');
+  }
+
+  function getApiUrl() {
+    return document.getElementById('api-url').value.replace(/\/$/, '');
+  }
+
+  async function connectAndFetch() {
+    setStatus('', 'connecting...');
+    log('Connecting to A1111...', 'info');
+    try {
+      const r = await fetch(getApiUrl() + '/sdapi/v1/sd-models');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus('connected', 'connected');
+      log('Connected!', 'ok');
+      await fetchModels();
+      await fetchCNModels();
+      await fetchUpscalers();
+      await fetchLoras();
+      await fetchEmbeddings();
+      await fetchPreprocessors();
+      document.getElementById('run-btn').disabled = false;
+    } catch(e) {
+      setStatus('error', 'connection failed');
+      log('Connection failed: ' + e.message + ' — is A1111 running with --api?', 'err');
+    }
+  }
+
+  async function fetchModels() {
+    try {
+      const r = await fetch(getApiUrl() + '/sdapi/v1/sd-models');
+      const models = await r.json();
+      const sel = document.getElementById('sd-model');
+      sel.innerHTML = '';
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.title;
+        opt.textContent = m.title;
+        sel.appendChild(opt);
+      });
+      log('Loaded ' + models.length + ' SD models', 'info');
+    } catch(e) {
+      log('Failed to fetch SD models: ' + e.message, 'err');
+    }
+  }
+
+  async function fetchCNModels() {
+    try {
+      const r = await fetch(getApiUrl() + '/controlnet/model_list');
+      const data = await r.json();
+      // populate both unit 1 and unit 2
+      ['cn-model', 'cn2-model'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">— none —</option>';
+        data.model_list.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m; opt.textContent = m;
+          if (id === 'cn-model' && m.toLowerCase().includes('depth')) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        if (cur && [...sel.options].some(o => o.value === cur)) sel.value = cur;
+      });
+      log('Loaded ' + data.model_list.length + ' ControlNet models', 'info');
+    } catch(e) {
+      log('Failed to fetch CN models (is ControlNet extension installed?): ' + e.message, 'err');
+    }
+  }
+
+  function toggleUpscaleOptions() {
+    document.getElementById('upscale-options').style.display = document.getElementById('upscale-enable').checked ? 'block' : 'none';
+  }
+
+  function toggleADOptions() {
+    document.getElementById('ad-options').style.display = document.getElementById('ad-enable').checked ? 'block' : 'none';
+  }
+
+  function toggleCN2Options() {
+    document.getElementById('cn2-options').style.display = document.getElementById('cn2-enable').checked ? 'block' : 'none';
+  }
+
+  // ── LoRA / Embedding fetch & insert ──────────────────────────────
+  async function fetchLoras() {
+    try {
+      const r = await fetch(getApiUrl() + '/sdapi/v1/loras');
+      const data = await r.json();
+      const sel = document.getElementById('lora-select');
+      sel.innerHTML = '<option value="">— none —</option>';
+      data.sort((a,b) => a.name.localeCompare(b.name)).forEach(l => {
+        const o = document.createElement('option');
+        o.value = l.alias || l.name;
+        o.textContent = l.alias || l.name;
+        sel.appendChild(o);
+      });
+      log(`Loaded ${data.length} LoRAs`, 'ok');
+    } catch(e) { log('Failed to fetch LoRAs: ' + e.message, 'error'); }
+  }
+
+  async function fetchEmbeddings() {
+    try {
+      const r = await fetch(getApiUrl() + '/sdapi/v1/embeddings');
+      const data = await r.json();
+      const sel = document.getElementById('embedding-select');
+      sel.innerHTML = '<option value="">— none —</option>';
+      const loaded = data.loaded || {};
+      Object.keys(loaded).sort().forEach(name => {
+        const o = document.createElement('option');
+        o.value = name; o.textContent = name;
+        sel.appendChild(o);
+      });
+      log(`Loaded ${Object.keys(loaded).length} embeddings`, 'ok');
+    } catch(e) { log('Failed to fetch embeddings: ' + e.message, 'error'); }
+  }
+
+  async function fetchPreprocessors() {
+    try {
+      const r = await fetch(getApiUrl() + '/controlnet/module_list?alias_names=true');
+      const data = await r.json();
+      const modules = data.module_list || data.modules || [];
+      ['cn-preprocessor', 'cn2-preprocessor'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = '<option value="none">none (pre-rendered / already processed)</option>';
+        modules.filter(m => m !== 'none').sort().forEach(name => {
+          const o = document.createElement('option');
+          o.value = name; o.textContent = name;
+          sel.appendChild(o);
+        });
+        if (cur && [...sel.options].some(o => o.value === cur)) sel.value = cur;
+      });
+      log(`Loaded ${modules.length} CN preprocessors`, 'ok');
+    } catch(e) { log('Failed to fetch preprocessors: ' + e.message, 'err'); }
+  }
+
+  function insertLora() {
+    const sel = document.getElementById('lora-select');
+    const weight = document.getElementById('lora-weight').value;
+    if (!sel.value) return;
+    const ta = document.getElementById('prompt');
+    const token = `<lora:${sel.value}:${weight}>`;
+    ta.value = ta.value.trim() + (ta.value.trim() ? ', ' : '') + token;
+    log(`Inserted ${token} into positive prompt`, 'ok');
+  }
+
+  function insertEmbedding() {
+    const sel = document.getElementById('embedding-select');
+    if (!sel.value) return;
+    const ta = document.getElementById('prompt');
+    ta.value = ta.value.trim() + (ta.value.trim() ? ', ' : '') + sel.value;
+    log(`Inserted embedding "${sel.value}" into positive prompt`, 'ok');
+  }
+
+  async function fetchUpscalers() {
+    try {
+      const r = await fetch(getApiUrl() + '/sdapi/v1/upscalers');
+      const data = await r.json();
+      const sel = document.getElementById('upscaler-model');
+      sel.innerHTML = '';
+      data.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.name;
+        opt.textContent = u.name;
+        if (u.name.toLowerCase().includes('ultrasharp') || u.name.toLowerCase().includes('remacri')) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      log('Loaded ' + data.length + ' upscalers', 'info');
+    } catch(e) {
+      log('Failed to fetch upscalers: ' + e.message, 'err');
+    }
+  }
+
+  function toBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Pre-scale image in browser before sending to SD, respecting aspect ratio
+  function prescaleImage(file, maxEdge) {
+    return new Promise((resolve) => {
+      if (!maxEdge || maxEdge <= 0) { resolve(null); return; }
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const w = img.naturalWidth, h = img.naturalHeight;
+        const longest = Math.max(w, h);
+        if (longest <= maxEdge) { resolve(null); return; } // already small enough
+        const scale = maxEdge / longest;
+        const nw = Math.round(w * scale / 64) * 64;
+        const nh = Math.round(h * scale / 64) * 64;
+        const canvas = document.createElement('canvas');
+        canvas.width = nw; canvas.height = nh;
+        canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
+        resolve({ b64: canvas.toDataURL('image/png').split(',')[1], w: nw, h: nh });
+      };
+      img.src = url;
+    });
+  }
+
+  // ── Resize mode toggle ────────────────────────────────────────────
+  let resizeModeType = 'to'; // 'to' or 'by'
+
+  function setResizeMode(mode) {
+    resizeModeType = mode;
+    document.getElementById('resize-to-section').style.display = mode === 'to' ? 'block' : 'none';
+    document.getElementById('resize-by-section').style.display = mode === 'by' ? 'block' : 'none';
+    // button styling
+    const toBtn = document.getElementById('rmode-to-btn');
+    const byBtn = document.getElementById('rmode-by-btn');
+    if (mode === 'to') {
+      toBtn.style.background = 'var(--accent)'; toBtn.style.color = 'var(--bg)'; toBtn.style.borderColor = 'var(--accent)';
+      byBtn.style.background = 'var(--bg3)';   byBtn.style.color = 'var(--text-dim)'; byBtn.style.borderColor = 'var(--border-bright)';
+    } else {
+      byBtn.style.background = 'var(--accent)'; byBtn.style.color = 'var(--bg)'; byBtn.style.borderColor = 'var(--accent)';
+      toBtn.style.background = 'var(--bg3)';   toBtn.style.color = 'var(--text-dim)'; toBtn.style.borderColor = 'var(--border-bright)';
+    }
+  }
+
+  // Get SD output dims — handles both Resize To and Resize By modes
+  function getOutputDims(imgW, imgH, maxEdgeOrScale) {
+    let scale;
+    if (resizeModeType === 'by') {
+      scale = maxEdgeOrScale; // it's already a scale factor
+    } else {
+      const longest = Math.max(imgW, imgH);
+      scale = maxEdgeOrScale / longest;
+    }
+    return {
+      w: Math.round(imgW * scale / 64) * 64,
+      h: Math.round(imgH * scale / 64) * 64,
+    };
+  }
+
+  function buildPayload(beautyB64, depthB64, outW, outH, seed = -1) {
+    const tdEnabled = document.getElementById('td-enable').checked;
+    const tvEnabled = document.getElementById('tv-enable').checked;
+    const cnModel = document.getElementById('cn-model').value;
+    const cnPreproc = document.getElementById('cn-preprocessor').value;
+    const resizeMode = parseInt(document.getElementById('resize-mode').value);
+    const clipSkip = parseInt(document.getElementById('clip-skip').value);
+    const colorCorrection = document.getElementById('color-correction').checked;
+
+    const payload = {
+      init_images: [beautyB64],
+      prompt: document.getElementById('prompt').value,
+      negative_prompt: document.getElementById('neg-prompt').value,
+      denoising_strength: parseFloat(document.getElementById('denoise').value),
+      steps: parseInt(document.getElementById('steps').value),
+      cfg_scale: parseFloat(document.getElementById('cfg').value),
+      sampler_name: document.getElementById('sampler').value,
+      width: outW,
+      height: outH,
+      resize_mode: resizeMode,
+      seed: seed,
+      save_images: true,
+      include_init_images: false,
+      override_settings: {
+        CLIP_stop_at_last_layers: clipSkip,
+        img2img_color_correction: colorCorrection,
+      },
+      override_settings_restore_afterwards: true,
+      alwayson_scripts: {}
+    };
+
+    const sdModel = document.getElementById('sd-model').value;
+    if (sdModel) payload.override_settings.sd_model_checkpoint = sdModel;
+
+    const outDir = document.getElementById('output-dir').value.trim();
+    if (outDir) payload.override_settings.outdir_img2img_samples = outDir;
+
+    if (cnModel) {
+      const cnArgs = [{
+        enabled: true,
+        image: depthB64 || beautyB64,
+        module: cnPreproc,
+        model: cnModel,
+        weight: parseFloat(document.getElementById('cn-weight').value),
+        guidance_start: parseFloat(document.getElementById('cn-start').value),
+        guidance_end: parseFloat(document.getElementById('cn-end').value),
+        resize_mode: 'Crop and Resize',
+        control_mode: 'Balanced',
+      }];
+
+      // Unit 2
+      const cn2Enabled = document.getElementById('cn2-enable').checked;
+      const cn2Model = document.getElementById('cn2-model').value;
+      if (cn2Enabled && cn2Model) {
+        const cn2Source = document.getElementById('cn2-source').value;
+        const cn2Image = cn2Source === 'depth' ? (depthB64 || beautyB64) : beautyB64;
+        cnArgs.push({
+          enabled: true,
+          image: cn2Image,
+          module: document.getElementById('cn2-preprocessor').value,
+          model: cn2Model,
+          weight: parseFloat(document.getElementById('cn2-weight').value),
+          guidance_start: parseFloat(document.getElementById('cn2-start').value),
+          guidance_end: parseFloat(document.getElementById('cn2-end').value),
+          resize_mode: 'Crop and Resize',
+          control_mode: 'Balanced',
+        });
+      }
+
+      payload.alwayson_scripts['ControlNet'] = { args: cnArgs };
+    }
+
+    if (tdEnabled) {
+      payload.alwayson_scripts['Tiled Diffusion'] = {
+        args: [
+          true,                                                    // enable
+          document.getElementById('td-method').value,             // method
+          true,                                                    // override size
+          true,                                                    // keep input size
+          outW,                                                    // image width
+          outH,                                                    // image height
+          parseInt(document.getElementById('td-tile-w').value),   // tile width
+          parseInt(document.getElementById('td-tile-h').value),   // tile height
+          parseInt(document.getElementById('td-overlap').value),  // overlap
+          parseInt(document.getElementById('td-batch').value),    // tile batch size
+          'None',                                                  // upscaler
+          1,                                                       // scale factor
+          false,                                                   // noise inversion (off)
+          false,                                                   // noise inversion renoise
+          0,                                                       // noise inversion steps
+          1,                                                       // noise inversion retouch
+          document.getElementById('td-cn-cpu').checked ? 1 : 0,  // move CN tensor to CPU
+          false,                                                   // bbox control (off)
+        ]
+      };
+    }
+
+    if (tvEnabled) {
+      payload.alwayson_scripts['Tiled VAE'] = {
+        args: [
+          true,
+          parseInt(document.getElementById('tv-enc').value),
+          parseInt(document.getElementById('tv-dec').value),
+          true,
+          document.getElementById('tv-fast-dec').checked,
+          document.getElementById('tv-fast-enc').checked,
+          document.getElementById('tv-color-fix').checked,
+        ]
+      };
+    }
+
+    if (document.getElementById('ad-enable').checked) {
+      const adPrompt = document.getElementById('ad-prompt').value.trim();
+      const adNeg = document.getElementById('ad-neg-prompt').value.trim();
+      const adArgs = {
+        ad_model: document.getElementById('ad-model').value,
+        ad_denoising_strength: parseFloat(document.getElementById('ad-denoise').value),
+      };
+      if (adPrompt) adArgs.ad_prompt = adPrompt;
+      if (adNeg) adArgs.ad_negative_prompt = adNeg;
+      payload.alwayson_scripts['ADetailer'] = {
+        args: [true, false, adArgs]
+      };
+    }
+
+    return payload;
+  }
+
+  async function postUpscale(imgB64, filename) {
+    const upscaler = document.getElementById('upscaler-model').value;
+    const factor = parseFloat(document.getElementById('upscale-factor').value);
+    if (!upscaler) { log('  ! No upscaler selected, skipping post-upscale', 'warn'); return imgB64; }
+
+    const payload = {
+      resize_mode: 0,
+      upscaling_resize: factor,
+      upscaler_1: upscaler,
+      image: imgB64,
+    };
+
+    const resp = await fetch(getApiUrl() + '/sdapi/v1/extra-single-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      log(`  ↑ Upscaled ${filename} x${factor} with ${upscaler}`, 'ok');
+      return data.image;
+    } else {
+      log(`  ! Upscale failed for ${filename}, using SD output`, 'warn');
+      return imgB64;
+    }
+  }
+
+  // ── File queue ────────────────────────────────────────────────────
+  let queuedBeautyFiles = [];
+  let queuedDepthFiles  = [];
+
+  function clearQueue() {
+    queuedBeautyFiles = [];
+    queuedDepthFiles  = [];
+    document.getElementById('queue-section').style.display = 'none';
+    document.getElementById('queue-list').innerHTML = '';
+    document.getElementById('queue-count').textContent = '0 files';
+    document.getElementById('run-btn').disabled = true;
+  }
+
+  // per-file status: null = pending, 'running', 'done', 'error'
+  let fileStatuses = [];
+
+  function renderQueue() {
+    const list = document.getElementById('queue-list');
+    list.innerHTML = '';
+    queuedBeautyFiles.forEach((f, i) => {
+      const tag = document.createElement('div');
+      const status = fileStatuses[i] || null;
+      const statusIcon = status === 'done' ? '✓' : status === 'error' ? '✗' : status === 'running' ? '⏳' : '';
+      const statusColor = status === 'done' ? 'var(--success)' : status === 'error' ? 'var(--error)' : status === 'running' ? 'var(--warn)' : 'var(--border)';
+      tag.id = 'queue-tag-' + i;
+      tag.style.cssText = `background:var(--bg3); border:1px solid ${statusColor}; padding:3px 8px; font-family:"Share Tech Mono",monospace; font-size:10px; color:var(--text); border-radius:2px; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; transition:border-color 0.3s;`;
+      const hasDepth = queuedDepthFiles[i];
+      tag.title = f.name + (hasDepth ? '\n+ depth: ' + hasDepth.name : '');
+      tag.textContent = (statusIcon ? statusIcon + ' ' : (hasDepth ? '📐 ' : '🖼 ')) + f.name;
+      list.appendChild(tag);
+    });
+    document.getElementById('queue-count').textContent = queuedBeautyFiles.length + ' file' + (queuedBeautyFiles.length !== 1 ? 's' : '');
+    document.getElementById('queue-section').style.display = 'block';
+    document.getElementById('run-btn').disabled = queuedBeautyFiles.length === 0;
+  }
+
+  function setFileStatus(i, status) {
+    fileStatuses[i] = status;
+    const tag = document.getElementById('queue-tag-' + i);
+    if (!tag) return;
+    const f = queuedBeautyFiles[i];
+    const hasDepth = queuedDepthFiles[i];
+    const statusIcon = status === 'done' ? '✓' : status === 'error' ? '✗' : status === 'running' ? '⏳' : '';
+    const statusColor = status === 'done' ? 'var(--success)' : status === 'error' ? 'var(--error)' : status === 'running' ? 'var(--warn)' : 'var(--border)';
+    tag.style.borderColor = statusColor;
+    tag.textContent = (statusIcon ? statusIcon + ' ' : (hasDepth ? '📐 ' : '🖼 ')) + f.name;
+  }
+
+  function selectFiles() {
+    const beautyInput = document.createElement('input');
+    beautyInput.type = 'file';
+    beautyInput.multiple = true;
+    beautyInput.accept = 'image/*';
+
+    beautyInput.onchange = async (e) => {
+      const beautyFiles = Array.from(e.target.files).sort((a,b) => a.name.localeCompare(b.name));
+      if (!beautyFiles.length) return;
+
+      const hasDepth = document.getElementById('cn-model').value && document.getElementById('cn-preprocessor').value === 'none';
+
+      if (hasDepth) {
+        log('Beauty images selected. Now pick matching depth maps (cancel to skip)...', 'info');
+        const depthInput = document.createElement('input');
+        depthInput.type = 'file';
+        depthInput.multiple = true;
+        depthInput.accept = 'image/*';
+
+        depthInput.onchange = (e2) => {
+          const depthFiles = Array.from(e2.target.files).sort((a,b) => a.name.localeCompare(b.name));
+          queuedBeautyFiles = beautyFiles;
+          queuedDepthFiles  = depthFiles;
+          renderQueue();
+          log(`Queued ${beautyFiles.length} images + ${depthFiles.length} depth maps. Adjust settings then hit 🚀 Generate.`, 'ok');
+        };
+        depthInput.oncancel = () => {
+          queuedBeautyFiles = beautyFiles;
+          queuedDepthFiles  = [];
+          renderQueue();
+          log(`Queued ${beautyFiles.length} images (no depth maps). Adjust settings then hit 🚀 Generate.`, 'ok');
+        };
+        depthInput.click();
+      } else {
+        queuedBeautyFiles = beautyFiles;
+        queuedDepthFiles  = [];
+        renderQueue();
+        log(`Queued ${beautyFiles.length} images. Adjust settings then hit 🚀 Generate.`, 'ok');
+      }
+    };
+
+    beautyInput.click();
+  }
+
+  async function runBatch() {
+    if (isRunning) {
+      abortBatch = true;
+      document.getElementById('run-label').textContent = '🚀 Generate';
+      isRunning = false;
+      log('Batch aborted by user', 'warn');
+      return;
+    }
+
+    if (!queuedBeautyFiles.length) {
+      log('No files queued — click 🖼 Select Images first.', 'warn');
+      return;
+    }
+
+    fileStatuses = new Array(queuedBeautyFiles.length).fill(null);
+    renderQueue();
+    await processBatch(queuedBeautyFiles, queuedDepthFiles);
+  }
+
+  async function processBatch(beautyFiles, depthFiles) {
+    isRunning = true;
+    abortBatch = false;
+    document.getElementById('run-label').textContent = '⏹ Stop';
+    document.getElementById('progress-section').classList.add('visible');
+
+    const total = beautyFiles.length;
+    let done = 0;
+    let timings = []; // seconds per image for ETA
+    const maxEdge = parseInt(document.getElementById('max-edge').value);
+    const outDir = document.getElementById('output-dir').value.trim();
+    const scaleFactor = parseFloat(document.getElementById('scale-factor').value);
+    const resizeParam = resizeModeType === 'by' ? scaleFactor : maxEdge;
+    const prescapCap = parseInt(document.getElementById('prescale-cap').value);
+    const doUpscale = document.getElementById('upscale-enable').checked;
+
+    // Seed handling
+    const seedLocked = document.getElementById('seed-lock-btn').dataset.locked === 'true';
+    const seedBase = parseInt(document.getElementById('seed').value);
+
+    for (let i = 0; i < beautyFiles.length; i++) {
+      if (abortBatch) break;
+
+      const bf = beautyFiles[i];
+      const df = depthFiles[i] || null;
+      const tStart = Date.now();
+
+      setFileStatus(i, 'running');
+      log(`Processing [${i+1}/${total}] ${bf.name}...`);
+
+      // ETA display
+      if (timings.length > 0) {
+        const avg = timings.reduce((a,b) => a+b, 0) / timings.length;
+        const remaining = (total - i) * avg;
+        const eta = remaining < 60 ? Math.round(remaining) + 's' : (remaining/60).toFixed(1) + 'min';
+        log(`  ETA: ~${eta} remaining (${avg.toFixed(1)}s/img avg)`, 'info');
+      }
+
+      try {
+        // Get image dimensions for aspect ratio calc
+        const imgDims = await new Promise(res => {
+          const img = new Image();
+          const url = URL.createObjectURL(bf);
+          img.onload = () => { URL.revokeObjectURL(url); res({ w: img.naturalWidth, h: img.naturalHeight }); };
+          img.src = url;
+        });
+
+        log(`  Input: ${imgDims.w}x${imgDims.h}`, 'info');
+
+        // Pre-scale input if cap is set
+        let beautyB64;
+        if (prescapCap > 0 && Math.max(imgDims.w, imgDims.h) > prescapCap) {
+          const scaled = await prescaleImage(bf, prescapCap);
+          beautyB64 = scaled ? scaled.b64 : await toBase64(bf);
+          if (scaled) log(`  Pre-scaled input to ${scaled.w}x${scaled.h}`, 'info');
+        } else {
+          beautyB64 = await toBase64(bf);
+        }
+
+        const depthB64 = df ? await toBase64(df) : null;
+
+        // Compute output dims preserving aspect ratio
+        const dims = getOutputDims(imgDims.w, imgDims.h, resizeParam);
+        log(`  Output size: ${dims.w}x${dims.h}${resizeModeType === 'by' ? ' (×' + scaleFactor + ')' : ''}`, 'info');
+
+        // Seed: -1 random, fixed, or fixed+offset per image
+        const imgSeed = (seedBase === -1) ? -1 : (seedLocked ? seedBase : seedBase + i);
+
+        const payload = buildPayload(beautyB64, depthB64, dims.w, dims.h, imgSeed);
+
+        const resp = await fetch(getApiUrl() + '/sdapi/v1/img2img', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const err = await resp.text();
+          log(`  ✗ Error on ${bf.name}: ${resp.status} — ${err.slice(0,120)}`, 'err');
+          setFileStatus(i, 'error');
+        } else {
+          const data = await resp.json();
+          let imgData = data.images[0];
+          const ext = document.getElementById('out-ext').value || 'jpg';
+          const now = new Date();
+          const pad = n => String(n).padStart(2,'0');
+          const dtPrefix = `${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+          const outName = dtPrefix + '-' + bf.name.replace(/\.[^.]+$/, '') + '.' + ext;
+
+          // Optional post-upscale
+          if (doUpscale) {
+            imgData = await postUpscale(imgData, outName);
+          }
+
+          // Show inline preview in log — no auto-download
+          const logArea = document.getElementById('log-area');
+          const wrapper = document.createElement('div');
+          wrapper.style.cssText = 'margin:8px 0; display:flex; align-items:flex-start; gap:10px;';
+          wrapper.innerHTML = `
+            <img src="data:image/png;base64,${imgData}"
+              style="width:120px; height:auto; border:1px solid var(--border-bright); cursor:pointer; flex-shrink:0;"
+              title="Click to download ${outName}"
+              onclick="(function(d,n,e){var a=document.createElement('a');var mime=e==='jpg'?'jpeg':e;a.href='data:image/'+mime+';base64,'+d;a.download=n;a.click();})(this.src.split(',')[1],'${outName}','${ext}')"
+            />
+            <div style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--success);">
+              ✓ ${outName}<br>
+              <span style="color:var(--text-dim); font-size:9px;">${imgSeed !== -1 ? 'seed: ' + imgSeed + ' · ' : ''}${outDir ? 'saved to: ' + outDir : 'saved to A1111 default output'}</span><br>
+              <span style="color:var(--text-dim); font-size:9px;">click image to download manually</span>
+            </div>`;
+          logArea.appendChild(wrapper);
+          logArea.scrollTop = logArea.scrollHeight;
+
+          setFileStatus(i, 'done');
+          timings.push((Date.now() - tStart) / 1000);
+        }
+      } catch(e) {
+        log(`  ✗ Exception on ${bf.name}: ${e.message}`, 'err');
+        setFileStatus(i, 'error');
+      }
+
+      done++;
+      const pct = Math.round((done / total) * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-label').textContent = `${done} / ${total} frames`;
+      document.getElementById('progress-pct').textContent = pct + '%';
+    }
+
+    isRunning = false;
+    document.getElementById('run-label').textContent = '🚀 Generate';
+    if (timings.length > 0) {
+      const total_t = timings.reduce((a,b) => a+b, 0);
+      log(`Finished in ${total_t < 60 ? total_t.toFixed(1) + 's' : (total_t/60).toFixed(1) + 'min'} · avg ${(total_t/timings.length).toFixed(1)}s/img`, 'ok');
+    }
+    log(abortBatch ? 'Batch stopped.' : 'Batch complete!', abortBatch ? 'warn' : 'ok');
+  }
+
+  function generateScript() {
+    const cnModel = document.getElementById('cn-model').value;
+    const tdEnabled = document.getElementById('td-enable').checked;
+    const tvEnabled = document.getElementById('tv-enable').checked;
+    const cnPreproc = document.getElementById('cn-preprocessor').value;
+
+    let script = `#!/usr/bin/env python3
+"""
+SD Batch Processor — generated from UI
+"""
+import requests, base64, os
+from pathlib import Path
+
+SD_URL = "${getApiUrl()}"
+BEAUTY_DIR = "${document.getElementById('beauty-dir').value || '/path/to/beauty'}"
+DEPTH_DIR  = "${document.getElementById('depth-dir').value || '/path/to/depth'}"
+OUTPUT_DIR = "${document.getElementById('output-dir').value || '/path/to/output'}"
+
+PROMPT = """${document.getElementById('prompt').value}"""
+NEG_PROMPT = """${document.getElementById('neg-prompt').value}"""
+DENOISING  = ${document.getElementById('denoise').value}
+STEPS      = ${document.getElementById('steps').value}
+CFG        = ${document.getElementById('cfg').value}
+SAMPLER    = "${document.getElementById('sampler').value}"
+WIDTH      = ${resizeModeType === 'by' ? '"scale:' + document.getElementById('scale-factor').value + '"  # resize BY mode — computed per-image' : document.getElementById('max-edge').value + '  # max long edge'}
+HEIGHT     = None  # calculated from aspect ratio at runtime
+SD_MODEL   = "${document.getElementById('sd-model').value}"
+CN_MODEL   = "${cnModel}"
+CN_PREPROC = "${cnPreproc}"
+CN_WEIGHT  = ${document.getElementById('cn-weight').value}
+CN_START   = ${document.getElementById('cn-start').value}
+CN_END     = ${document.getElementById('cn-end').value}
+
+
+def encode(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+def process_frame(beauty_path, depth_path=None):
+    beauty_b64 = encode(beauty_path)
+    depth_b64  = encode(depth_path) if depth_path else beauty_b64
+
+    payload = {
+        "init_images": [beauty_b64],
+        "prompt": PROMPT,
+        "negative_prompt": NEG_PROMPT,
+        "denoising_strength": DENOISING,
+        "steps": STEPS,
+        "cfg_scale": CFG,
+        "sampler_name": SAMPLER,
+        "width": WIDTH,
+        "height": HEIGHT,
+        "override_settings": {"sd_model_checkpoint": SD_MODEL},
+        "alwayson_scripts": {
+${cnModel ? `            "ControlNet": {
+                "args": [{
+                    "enabled": True,
+                    "image": depth_b64,
+                    "module": CN_PREPROC,
+                    "model": CN_MODEL,
+                    "weight": CN_WEIGHT,
+                    "guidance_start": CN_START,
+                    "guidance_end": CN_END,
+                    "resize_mode": "Crop and Resize",
+                    "control_mode": "Balanced",
+                }]
+            },` : ''}
+${tdEnabled ? `            "Tiled Diffusion": {
+                "args": [True, "${document.getElementById('td-method').value}", True, True,
+                         WIDTH, HEIGHT,
+                         ${document.getElementById('td-tile-w').value}, ${document.getElementById('td-tile-h').value},
+                         ${document.getElementById('td-overlap').value}, ${document.getElementById('td-batch').value},
+                         "None", 1, 0.35, False]
+            },` : ''}
+${tvEnabled ? `            "Tiled VAE": {
+                "args": [True,
+                         ${document.getElementById('tv-enc').value},
+                         ${document.getElementById('tv-dec').value},
+                         True,
+                         ${document.getElementById('tv-fast-dec').checked},
+                         ${document.getElementById('tv-fast-enc').checked},
+                         ${document.getElementById('tv-color-fix').checked}]
+            },` : ''}
+        }
+    }
+
+    r = requests.post(SD_URL + "/sdapi/v1/img2img", json=payload)
+    if r.status_code == 200:
+        img = base64.b64decode(r.json()["images"][0])
+        out = Path(OUTPUT_DIR) / ("sd_" + Path(beauty_path).stem + ".png")
+        out.write_bytes(img)
+        print(f"  ✓ {out.name}")
+    else:
+        print(f"  ✗ Error {r.status_code}: {r.text[:200]}")
+
+
+def main():
+    beauty_dir = Path(BEAUTY_DIR)
+    depth_dir  = Path(DEPTH_DIR)
+    Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+
+    frames = sorted(beauty_dir.glob("*.png")) + sorted(beauty_dir.glob("*.jpg"))
+    print(f"Found {len(frames)} frames")
+
+    for i, frame in enumerate(frames):
+        depth = depth_dir / frame.name
+        print(f"[{i+1}/{len(frames)}] {frame.name}")
+        process_frame(frame, depth if depth.exists() else None)
+
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()
+`;
+
+    const blob = new Blob([script], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sd_batch.py';
+    a.click();
+    log('Python script exported as sd_batch.py', 'ok');
+  }
+
+  // init
+  toggleTDOptions();
+  toggleTVOptions();
+  populatePromptDropdowns();
+</script>
+</body>
+</html>
